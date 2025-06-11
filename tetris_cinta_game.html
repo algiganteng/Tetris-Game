@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tetris Cinta</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Comic Sans MS', cursive;
+      background: linear-gradient(to bottom, #ffd6e8, #ffeaf4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    canvas {
+      background: #fff0f6;
+      border: 3px solid pink;
+    }
+    #startBtn {
+      background-color: #ff69b4;
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      font-size: 20px;
+      cursor: pointer;
+      border-radius: 12px;
+      margin-top: 20px;
+      box-shadow: 0 0 15px #ff9bd2;
+    }
+    #notifBar {
+      position: absolute;
+      top: 30%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #ffcce6;
+      border: 3px solid hotpink;
+      padding: 40px;
+      text-align: center;
+      border-radius: 20px;
+      box-shadow: 0 0 30px #ff66b2;
+      display: none;
+      z-index: 10;
+    }
+    #notifBar h1 {
+      font-size: 36px;
+      color: #e60073;
+      margin-bottom: 10px;
+    }
+    #notifBar p {
+      font-size: 16px;
+      color: #b30059;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="240" height="400"></canvas>
+  <button id="startBtn">Mulai Game Cinta 💖</button>
+  <div id="notifBar">
+    <h1></h1>
+    <p></p>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const context = canvas.getContext("2d");
+    const scale = 20;
+    const rows = canvas.height / scale;
+    const cols = canvas.width / scale;
+
+    let matrix, pos, score = 0;
+    let gameInterval = null;
+
+    const pieces = [
+      [[1, 1, 1], [0, 1, 0]],
+      [[0, 2, 2], [2, 2, 0]],
+      [[3, 3, 0], [0, 3, 3]],
+      [[4, 4], [4, 4]],
+      [[5, 5, 5, 5]]
+    ];
+
+    function createMatrix(w, h) {
+      const matrix = [];
+      while (h--) matrix.push(new Array(w).fill(0));
+      return matrix;
+    }
+
+    function collide(matrix, piece, offset) {
+      for (let y = 0; y < piece.length; ++y) {
+        for (let x = 0; x < piece[y].length; ++x) {
+          if (
+            piece[y][x] !== 0 &&
+            (matrix[y + offset.y] && matrix[y + offset.y][x + offset.x]) !== 0
+          ) return true;
+        }
+      }
+      return false;
+    }
+
+    function merge(matrix, piece, offset) {
+      piece.forEach((row, y) => row.forEach((value, x) => {
+        if (value) matrix[y + offset.y][x + offset.x] = value;
+      }));
+    }
+
+    function rotate(matrix) {
+      return matrix[0].map((_, i) => matrix.map(row => row[i]).reverse());
+    }
+
+    function drawMatrix(matrix, offset) {
+      matrix.forEach((row, y) => row.forEach((value, x) => {
+        if (value) {
+          context.fillStyle = "#ff3399";
+          context.fillRect((x + offset.x) * scale, (y + offset.y) * scale, scale, scale);
+        }
+      }));
+    }
+
+    function draw() {
+      context.fillStyle = "#fff0f6";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      drawMatrix(matrix, {x:0,y:0});
+      drawMatrix(piece, pos);
+    }
+
+    function drop() {
+      pos.y++;
+      if (collide(matrix, piece, pos)) {
+        pos.y--;
+        merge(matrix, piece, pos);
+        resetPiece();
+        let lines = 0;
+        for (let y = rows - 1; y >= 0; y--) {
+          if (matrix[y].every(val => val !== 0)) {
+            matrix.splice(y, 1);
+            matrix.unshift(new Array(cols).fill(0));
+            score += 2;
+            lines++;
+          }
+        }
+        if (lines) draw();
+      }
+      draw();
+      if (score >= 100) {
+        endGame("KAMU MENANG", "selamat kamu udah jadi pacar aku untuk selamanya");
+      }
+    }
+
+    function resetPiece() {
+      piece = pieces[Math.floor(Math.random() * pieces.length)];
+      pos = {x: Math.floor(cols / 2 - piece[0].length / 2), y: 0};
+      if (collide(matrix, piece, pos)) {
+        endGame("KAMU KALAH", "karna kamu kalah, kamu wajib jadi pacarku selamanya");
+      }
+    }
+
+    function endGame(title, message) {
+      clearInterval(gameInterval);
+      document.getElementById("notifBar").style.display = "block";
+      document.querySelector("#notifBar h1").textContent = title;
+      document.querySelector("#notifBar p").textContent = message;
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (!gameInterval) return;
+      if (event.key === "ArrowLeft") pos.x--;
+      else if (event.key === "ArrowRight") pos.x++;
+      else if (event.key === "ArrowDown") drop();
+      else if (event.key === "ArrowUp") piece = rotate(piece);
+      if (collide(matrix, piece, pos)) {
+        if (event.key === "ArrowLeft") pos.x++;
+        else if (event.key === "ArrowRight") pos.x--;
+        else if (event.key === "ArrowUp") piece = rotate(rotate(rotate(piece)));
+      }
+      draw();
+    });
+
+    document.getElementById("startBtn").addEventListener("click", () => {
+      score = 0;
+      document.getElementById("notifBar").style.display = "none";
+      matrix = createMatrix(cols, rows);
+      resetPiece();
+      draw();
+      gameInterval = setInterval(drop, 700);
+    });
+  </script>
+</body>
+</html>
