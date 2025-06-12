@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tetris Romantis</title>
+  <style>
+    body {
+      margin: 0;
+      background: #ffeff7;
+      font-family: 'Comic Sans MS', cursive;
+      text-align: center;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 15px;
+    }
+    h1 {
+      margin-top: 0;
+    }
+    #game-container {
+      position: relative;
+      width: 260px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 20px;
+    }
+    canvas {
+      background: #fff0f5;
+      box-shadow: 0 0 10px rgba(255, 105, 180, 0.7);
+      display: block;
+      border-radius: 10px;
+    }
+    #score-board {
+      background: #ffe4ec;
+      border: 2px solid #ff69b4;
+      padding: 15px 10px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(255, 105, 180, 0.5);
+      width: 60px;
+      text-align: center;
+      font-size: 14px;
+      user-select: none;
+    }
+    #score-board img {
+      width: 40px;
+      margin-bottom: 5px;
+    }
+    button#start-btn {
+      background-color: #ff69b4;
+      border: none;
+      padding: 12px 24px;
+      color: white;
+      font-size: 18px;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 8px rgba(255, 105, 180, 0.5);
+      transition: background-color 0.3s ease;
+    }
+    button#start-btn:hover {
+      background-color: #e5539a;
+    }
+    #message {
+      font-size: 18px;
+      color: #d6336c;
+      font-weight: bold;
+      min-height: 24px;
+      user-select: none;
+    }
+    #mobile-controls {
+      display: none;
+      margin-top: 10px;
+      gap: 15px;
+      user-select: none;
+    }
+    .mobile-btn {
+      padding: 15px;
+      background: #ffb6c1;
+      border: 2px solid #ff69b4;
+      border-radius: 50%;
+      font-size: 18px;
+      cursor: pointer;
+      box-shadow: 0 3px 6px rgba(255, 105, 180, 0.4);
+      transition: background-color 0.3s ease;
+      user-select: none;
+    }
+    .mobile-btn:hover {
+      background-color: #ff8db3;
+    }
+  </style>
+</head>
+<body>
+  <h1>Tetris Romantis</h1>
+  <button id="start-btn">Mulai</button>
+  <div id="message"></div>
+  <div id="game-container" style="display:none;">
+    <canvas id="game" width="200" height="400"></canvas>
+    <div id="score-board">
+      <img src="https://cdn-icons-png.flaticon.com/512/833/833472.png" alt="Love" />
+      <h2>Score:</h2> <span id="score">0</span>
+      <p>Highscore: <br /><span id="highscore">0</span></p>
+    </div>
+  </div>
+
+  <div id="mobile-controls">
+    <button class="mobile-btn" onclick="move('left')">⬅</button>
+    <button class="mobile-btn" onclick="move('right')">➡</button>
+    <button class="mobile-btn" onclick="move('down')">⬇</button>
+    <button class="mobile-btn" onclick="rotate()">🔄</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const grid = 20;
+    const cols = canvas.width / grid;
+    const rows = canvas.height / grid;
+    let score = 0;
+    let highscore = localStorage.getItem('highscore') || 0;
+    document.getElementById('highscore').innerText = highscore;
+
+    let gameInterval;
+    let currentPiece = null;
+    let board = [];
+
+    const tetrominos = [
+      [[1,1,1,1]],
+      [[1,1],[1,1]],
+      [[0,1,0],[1,1,1]],
+      [[1,1,0],[0,1,1]],
+      [[0,1,1],[1,1,0]]
+    ];
+
+    const colors = ['#ff69b4', '#ff85c1', '#ffa6d1', '#ffc0cb', '#ffe0ec'];
+
+    function createBoard() {
+      board = Array.from({length: rows}, () => Array(cols).fill(0));
+    }
+
+    function drawBoard() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+          if (board[y][x]) {
+            ctx.fillStyle = board[y][x];
+            ctx.shadowColor = '#d6336c';
+            ctx.shadowBlur = 5;
+            ctx.fillRect(x * grid, y * grid, grid, grid);
+            ctx.shadowBlur = 0;
+          }
+        }
+      }
+    }
+
+    function drawPiece() {
+      if (!currentPiece) return;
+      const { shape, x, y, color } = currentPiece;
+      ctx.fillStyle = color;
+      ctx.shadowColor = '#d6336c';
+      ctx.shadowBlur = 5;
+      shape.forEach((row, dy) => {
+        row.forEach((val, dx) => {
+          if (val) {
+            ctx.fillRect((x+dx)*grid, (y+dy)*grid, grid, grid);
+          }
+        });
+      });
+      ctx.shadowBlur = 0;
+    }
+
+    function spawnPiece() {
+      const shape = tetrominos[Math.floor(Math.random() * tetrominos.length)];
+      currentPiece = {
+        shape,
+        x: Math.floor(cols/2) - Math.floor(shape[0].length/2),
+        y: 0,
+        color: colors[Math.floor(Math.random() * colors.length)]
+      };
+      if (!isValidMove(0,0)) {
+        endGame();
+      }
+    }
+
+    function isValidMove(dx, dy, newShape = currentPiece.shape) {
+      const { x, y } = currentPiece;
+      return newShape.every((row, dy2) =>
+        row.every((val, dx2) => {
+          const newX = x + dx2 + dx;
+          const newY = y + dy2 + dy;
+          return !val || (
+            newX >= 0 &&
+            newX < cols &&
+            newY < rows &&
+            board[newY][newX] === 0
+          );
+        })
+      );
+    }
+
+    function placePiece() {
+      currentPiece.shape.forEach((row, dy) => {
+        row.forEach((val, dx) => {
+          if (val) {
+            board[currentPiece.y+dy][currentPiece.x+dx] = currentPiece.color;
+          }
+        });
+      });
+      clearLines();
+      spawnPiece();
+    }
+
+    function clearLines() {
+      for (let y = rows - 1; y >= 0; y--) {
+        if (board[y].every(cell => cell !== 0)) {
+          board.splice(y, 1);
+          board.unshift(Array(cols).fill(0));
+          score += 3;
+          updateScore();
+          y++; 
+        }
+      }
+    }
+
+    function updateScore() {
+      document.getElementById('score').innerText = score;
+      if (score >= 100) {
+        endGame(true);
+      }
+    }
+
+    function move(dir) {
+      const dx = dir === 'left' ? -1 : dir === 'right' ? 1 : 0;
+      const dy = dir === 'down' ? 1 : 0;
+      if (isValidMove(dx, dy)) {
+        currentPiece.x += dx;
+        currentPiece.y += dy;
+        draw();
+      }
+    }
+
+    function rotate() {
+      const newShape = currentPiece.shape[0].map((_, i) =>
+        currentPiece.shape.map(row => row[i]).reverse()
+      );
+      if (isValidMove(0, 0, newShape)) {
+        currentPiece.shape = newShape;
+        draw();
+      }
+    }
+
+    function fall() {
+      if (isValidMove(0, 1)) {
+        currentPiece.y++;
+      } else {
+        placePiece();
+      }
+      draw();
+    }
+
+    function draw() {
+      drawBoard();
+      drawPiece();
+    }
+
+    function gameLoop() {
+      fall();
+    }
+
+    function startGame() {
+      score = 0;
+      document.getElementById('message').innerText = '';
+      document.getElementById('score').innerText = score;
+      createBoard();
+      spawnPiece();
+      draw();
+      clearInterval(gameInterval);
+      gameInterval = setInterval(gameLoop, 700);
+      document.getElementById('start-btn').style.display = 'none';
+      document.getElementById('game-container').style.display = 'flex';
+      document.getElementById('mobile-controls').style.display = 'flex';
+      canvas.focus();
+    }
+
+    function endGame(win = false) {
+      clearInterval(gameInterval);
+      if (score > highscore) {
+        localStorage.setItem('highscore', score);
+        document.getElementById('highscore').innerText = score;
+      }
+      document.getElementById('message').innerText = win ?
+        'Kamu berhasil menang, selamat kamu udah jadi pacarku selamanya ❤️' :
+        'Karna kamu kalah, kamu wajib jadi pacarku selamanya 😘';
+      document.getElementById('start-btn').style.display = 'block';
+      document.getElementById('mobile-controls').style.display = 'none';
+      document.getElementById('game-container').style.display = 'none';
+      currentPiece = null;
+    }
+
+    document.getElementById('start-btn').addEventListener('click', startGame);
+
+    document.addEventListener('keydown', (e) => {
+      if (!currentPiece) return;
+      if (e.key === 'ArrowLeft') move('left');
+      else if (e.key === 'ArrowRight') move('right');
+      else if (e.key === 'ArrowDown') move('down');
+      else if (e.key === 'ArrowUp') rotate();
+    });
+  </script>
+<audio id="backsound" loop>
+  <source src="path/to/lagu-romantis.mp3" type="audio/mpeg">
+  Your browser does not support the audio element.
+</audio>
+
+<script>
+  // Biar musik otomatis mulai pas game start
+  function startGame() {
+    document.getElementById('backsound').play();
+    // ...kode startGame-mu yang lain tetap jalan normal
+  }
+
+  // Kalau mau pause musik pas game over
+  function endGame() {
+    document.getElementById('backsound').pause();
+    document.getElementById('backsound').currentTime = 0;
+    // ...kode endGame-mu yang lain tetap jalan normal
+  }
+</script>
+</body>
+</html>
